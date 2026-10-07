@@ -1,0 +1,139 @@
+# Checks every push and pull request.
+#
+# Three jobs, because the three things that can break are independent: the Dart
+# code, the Android build and the iOS build. A change that compiles on one
+# platform can still fail on the other, and this project's rules ask for both
+# to be considered on every change.
+#
+# The iOS job exists so that can be answered with evidence rather than with a
+# guess. `flutter build ios --no-codesign` compiles the app and stops short of
+# signing it, so it needs no certificate, no provisioning profile and no Apple
+# Developer account. On a public repository the macOS runner it needs costs
+# nothing, which means an iOS regression is caught without owning a Mac.
+#
+# There is no Podfile in this project, so no CocoaPods step is needed.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# A new push to the same branch makes the previous run pointless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keep in step with ios/ci_scripts/ci_post_clone.sh and the screenshot
+  # workflow, which pin the same SDK.
+  FLUTTER_VERSION: '3.47.6'
+
+jobs:
+  analyze-and-test:
+    name: Analyze and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache the Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: ~/flutter
+          key: flutter-linux-${{ env.FLUTTER_VERSION }}
+
+      - name: Install Flutter ${{ env.FLUTTER_VERSION }}
+        run: |
+          if [ ! -x "$HOME/flutter/bin/flutter" ]; then
+            git clone --depth 1 --branch "$FLUTTER_VERSION" \
+              https://github.com/flutter/flutter.git "$HOME/flutter"
+          fi
+          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: pub-${{ runner.os }}-
+
+      - run: flutter --version
+      - run: flutter pub get
+
+      # Formatting is deliberately not checked: this codebase aligns
+      # constructor arguments and the localization getters by hand, and
+      # `dart format` collapses all of it.
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+  android-build:
+    name: Build Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # The project compiles to Java 17 bytecode and needs a JDK, not a JRE.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache the Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: ~/flutter
+          key: flutter-linux-${{ env.FLUTTER_VERSION }}
+
+      - name: Install Flutter ${{ env.FLUTTER_VERSION }}
+        run: |
+          if [ ! -x "$HOME/flutter/bin/flutter" ]; then
+            git clone --depth 1 --branch "$FLUTTER_VERSION" \
+              https://github.com/flutter/flutter.git "$HOME/flutter"
+          fi
+          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - run: flutter pub get
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+  ios-build:
+    name: Build iOS (no signing)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache the Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: ~/flutter
+          key: flutter-macos-${{ env.FLUTTER_VERSION }}
+
+      - name: Install Flutter ${{ env.FLUTTER_VERSION }}
+        run: |
+          if [ ! -x "$HOME/flutter/bin/flutter" ]; then
+            git clone --depth 1 --branch "$FLUTTER_VERSION" \
+              https://github.com/flutter/flutter.git "$HOME/flutter"
+          fi
+          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
+
+      - run: flutter --version
+      - run: xcodebuild -version
+      - run: flutter pub get
+
+      - name: Build iOS without signing
+        run: flutter build ios --release --no-codesign
