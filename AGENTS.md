@@ -35,7 +35,9 @@ flutter analyze
 # Generate launcher icons
 dart run flutter_launcher_icons
 
-# Shoot the raw store screenshots on all four simulators/emulators
+# Shoot the raw store screenshots on all four simulators/emulators.
+# The two iOS devices need macOS; .github/workflows/store-screenshots-ios.yml
+# shoots them on a GitHub hosted Mac and uploads the raw pictures.
 tool/store_screenshots.sh
 
 # Frame them into the pictures the two listings show (needs librsvg)
