@@ -128,6 +128,7 @@ lib/
 - State must always go through the appropriate Provider; never manage mutable app state directly inside a widget
 - DB access only via `db_helper.dart`; never query SQLite from a screen or widget directly
 - When changing a model, always update the schema and migrations in `db_helper.dart`
+- Plugin versions and the Android Kotlin setup move together. `android.builtInKotlin` is on in `android/gradle.properties`, which is what lets `share_plus` and `package_info_plus` track their current releases instead of sitting under a cap. Read the comments in `pubspec.yaml` and `gradle.properties` as a pair before changing either, and never run a blanket `flutter pub upgrade --major-versions`
 
 ## Global Invariants
 
