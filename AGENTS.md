@@ -29,6 +29,12 @@ flutter build ios --release
 # Run tests
 flutter test
 
+# Run one test file
+flutter test test/utils/throw_stats_test.dart
+
+# Run one test or group by name substring
+flutter test --plain-name 'checkout'
+
 # Lint check (run after every change)
 flutter analyze
 
@@ -110,6 +116,19 @@ lib/
 2. Screens trigger actions via `context.read<XProvider>().method()`
 3. Providers call `db_helper.dart` for persistence and call `notifyListeners()`
 4. No widget accesses the database directly
+
+## Tests
+
+`test/support/` holds the four helpers almost every test leans on. Use them instead of mocking the layer under test away.
+
+- `useInMemoryDatabase()` in `test_db.dart`, called once inside a `group`, points `DbHelper` at a fresh in-memory SQLite database per test, created through the shipped `onCreate`, so provider tests run the real schema, the real queries and the real replay path. It also resets `DeviceIdentity` and zeroes `TurnPacing.debugVisitPause`, so no test sleeps through a visit pause. `asDevice(id)` on top of it acts out a second device for the sync tests, and `seedThrows(playerId, count)` batch inserts visits for the payloads that have to outgrow a single QR code
+- `testApp(child)` in `test_app.dart` wraps one screen in the localizations and `MaterialApp` it needs to build. It supplies only `PlayersProvider`. A mode's provider is withheld on purpose, so a screen missing its provider fails with a clear `ProviderNotFound` instead of binding to an empty one and spinning on its loading indicator forever. Tests wrap their own, with the concrete type
+- `useFakeScanner()` in `fake_scanner.dart` answers the camera plugin. Every widget test that reaches a receive screen needs it, because those screens build `MobileScanner` as soon as they open. It answers rather than pretends to scan: what a scan leads to is exercised through the codec and the transport, which take a payload as a string
+- `FakeStore` in `fake_store.dart` stands in for the in-app purchase platform and records what it was asked, because the donation tests assert what is *not* requested at startup
+
+`test/utils/bot_calibration_test.dart` pins the three-dart average every `BotLevel` plays. Moving a scatter value or the X01 strategy means moving those numbers with it, deliberately.
+
+The store screenshots are an integration test rather than a widget test: `integration_test/store_screenshots_test.dart`, driven by `tool/store_screenshots.sh` on a booted simulator or emulator, because a widget test paints with the test font instead of the system one.
 
 ## Coding Rules
 
