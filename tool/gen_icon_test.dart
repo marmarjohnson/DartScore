@@ -1,6 +1,12 @@
 // Run with:  flutter test tool/gen_icon_test.dart
 // Renders the app icon to a 1024×1024 PNG and saves it to
 // assets/icon/app_icon.png, ready for flutter_launcher_icons.
+//
+// WARNING: this does not draw the icon the app currently ships. The painter
+// below renders a plain board with "180+" across the middle, while the
+// committed assets/icon/app_icon.png is a "DartScore" wordmark over a board
+// with a dart in it. Running this replaces the shipped icon with the older
+// artwork. Bring the painter in step with the shipped design before using it.
 
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -9,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 import 'package:dartscore_app/widgets/dartboard_icon.dart';
 
@@ -16,24 +23,21 @@ void main() {
   testWidgets('export dartboard as app icon PNG', (WidgetTester tester) async {
     const size = 1024.0;
 
-    // ── Load a bold macOS system font so text renders properly ────────────
-    const fontCandidates = [
-      '/System/Library/Fonts/Helvetica.ttc',
-      '/Library/Fonts/Arial Bold.ttf',
-      '/System/Library/Fonts/SFNSDisplay.ttf',
-      '/System/Library/Fonts/SFNS.ttf',
-    ];
-    String? loadedFamily;
-    for (final path in fontCandidates) {
-      final f = File(path);
-      if (f.existsSync()) {
-        final data = ByteData.sublistView(f.readAsBytesSync());
-        final loader = FontLoader('_IconFont')..addFont(Future.value(data));
-        await loader.load();
-        loadedFamily = '_IconFont';
-        break;
-      }
+    // ── Load the font the "180+" is drawn in ──────────────────────────────
+    // Roboto Black Italic ships inside the Flutter SDK, so every machine that
+    // can run this tool renders the same icon. Reading a macOS system font
+    // instead made the output depend on the host: where those fonts are
+    // absent nothing loaded, the test font drew every glyph as a filled box,
+    // and the tool still overwrote the PNG and passed.
+    final fontFile = materialFont('Roboto-BlackItalic.ttf');
+    if (fontFile == null) {
+      fail('Roboto-BlackItalic.ttf was not found in the Flutter SDK. Run '
+          '`flutter precache` to fetch the material fonts, or set FLUTTER_ROOT '
+          'to the SDK this tool should read them from.');
     }
+    final loader = FontLoader(iconFontFamily)
+      ..addFont(Future.value(ByteData.sublistView(fontFile.readAsBytesSync())));
+    await loader.load();
 
     // Give the test canvas enough room
     tester.view.physicalSize = const Size(size, size);
@@ -55,7 +59,7 @@ void main() {
                 alignment: Alignment.center,
                 child: CustomPaint(
                   size: const Size(size, size),
-                  painter: _AppIconPainter(fontFamily: loadedFamily),
+                  painter: const _AppIconPainter(fontFamily: iconFontFamily),
                 ),
               ),
             ),
@@ -85,8 +89,11 @@ void main() {
 /// Black background + dartboard (scaled, centred slightly high) +
 /// bold "180" in red with a thick black outline at the bottom.
 class _AppIconPainter extends CustomPainter {
-  final String? fontFamily;
-  const _AppIconPainter({this.fontFamily});
+  /// Family the "180+" is drawn in, registered by the test before painting.
+  final String fontFamily;
+
+  /// Creates the painter, drawing its text in [fontFamily].
+  const _AppIconPainter({required this.fontFamily});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -146,4 +153,39 @@ class _AppIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+/// Family name the icon font is registered under.
+const iconFontFamily = '_IconFont';
+
+/// Locates [name] among the material fonts bundled with the Flutter SDK.
+///
+/// Checks `FLUTTER_ROOT` first, then walks up from the running Dart
+/// executable, which sits under `<sdk>/bin/cache/dart-sdk/bin`, taking the
+/// first ancestor that holds the material font cache. Walking rather than
+/// counting directories keeps this working if the SDK layout shifts. Returns
+/// null when no candidate holds the cache, which is what a checkout that has
+/// never been precached looks like.
+File? materialFont(String name) {
+  final roots = <String>[];
+  final fromEnv = Platform.environment['FLUTTER_ROOT'];
+  if (fromEnv != null) roots.add(fromEnv);
+  roots.addAll(ancestorsOf(Platform.resolvedExecutable));
+  for (final root in roots) {
+    final file = File(p.join(root, 'bin', 'cache', 'artifacts',
+                             'material_fonts', name));
+    if (file.existsSync()) return file;
+  }
+  return null;
+}
+
+/// Every ancestor directory of [path], nearest first.
+Iterable<String> ancestorsOf(String path) sync* {
+  var dir = p.dirname(path);
+  while (true) {
+    yield dir;
+    final parent = p.dirname(dir);
+    if (parent == dir) return;
+    dir = parent;
+  }
 }

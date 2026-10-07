@@ -32,6 +32,10 @@ flutter test
 # Lint check (run after every change)
 flutter analyze
 
+# Re-render assets/icon/app_icon.png from the DartboardIcon widget
+# (reads Roboto out of the Flutter SDK, so it runs on any platform)
+flutter test tool/gen_icon_test.dart
+
 # Generate launcher icons
 dart run flutter_launcher_icons
 
