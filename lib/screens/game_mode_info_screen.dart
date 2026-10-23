@@ -3,7 +3,7 @@ import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
 
 /// The four selectable game modes, used by the mode selection and info screens.
-enum GameModeOption { x01, cricket, shanghai, aroundTheClock }
+enum GameModeOption { x01, cricket, shanghai, aroundTheClock, capital }
 
 /// Explains the rules of a single game [mode] (title, description, variants).
 class GameModeInfoScreen extends StatelessWidget {
@@ -103,6 +103,9 @@ class GameModeInfoScreen extends StatelessWidget {
       case GameModeOption.aroundTheClock:
         return (l.modeAroundClockName, l.modeAroundClockTagline,
             l.modeAroundClockDescription, Icons.watch_later_outlined);
+      case GameModeOption.capital:
+        return (l.modeCapitalName, l.modeCapitalTagline,
+            l.modeCapitalDescription, Icons.account_balance_wallet_outlined);
     }
   }
 }

@@ -6,6 +6,7 @@ import 'game_setup_screen.dart';
 import 'cricket_setup_screen.dart';
 import 'shanghai_setup_screen.dart';
 import 'around_the_clock_setup_screen.dart';
+import 'capital_setup_screen.dart';
 
 /// Lets the user pick a game mode (X01, Cricket, Shanghai, Around the Clock),
 /// opening its setup screen or an info screen explaining the rules.
@@ -77,6 +78,19 @@ class GameModeSelectionScreen extends StatelessWidget {
                     ),
                     onInfo: () => _openInfo(context, GameModeOption.aroundTheClock),
                   ),
+                  const SizedBox(height: 14),
+                  _ModeCard(
+                    mode: GameModeOption.capital,
+                    name: l.modeCapitalName,
+                    tagline: l.modeCapitalTagline,
+                    available: true,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const CapitalSetupScreen()),
+                    ),
+                    onInfo: () => _openInfo(context, GameModeOption.capital),
+                  ),
                 ],
               ),
             ),
@@ -126,6 +140,8 @@ class _ModeCard extends StatelessWidget {
         return Icons.layers_rounded;
       case GameModeOption.aroundTheClock:
         return Icons.watch_later_outlined;
+      case GameModeOption.capital:
+        return Icons.account_balance_wallet_outlined;
     }
   }
 
