@@ -1,0 +1,108 @@
+# Shoots the iOS half of the store screenshots on a GitHub hosted Mac.
+#
+# The project is developed on Linux, where `xcrun` does not exist, so the two
+# App Store slots cannot be filled locally. This workflow boots the simulators
+# `tool/store_screenshots.sh` asks for, runs the same script, and uploads the
+# raw pictures as an artifact to download and feed to the composer:
+#
+#   dart run tool/compose_store_screenshots.dart
+#
+# Only the iOS devices run here. Android emulators need KVM, which the macOS
+# runners do not offer, and the two Android slots can be shot from any machine
+# with an emulator attached over adb.
+#
+# Nothing is signed: a simulator build needs no certificate and no provisioning
+# profile, so this workflow needs no Apple credentials of any kind.
+
+name: Store screenshots (iOS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      devices:
+        description: 'Which iOS devices to shoot, space separated'
+        default: 'iphone ipad'
+        required: true
+
+env:
+  # Keep in step with ios/ci_scripts/ci_post_clone.sh, which pins the same SDK
+  # for the Xcode Cloud build.
+  FLUTTER_VERSION: '3.47.8'
+
+jobs:
+  screenshots:
+    runs-on: macos-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cloned rather than taken from a third party action, so this workflow
+      # installs the SDK exactly the way the Xcode Cloud script does.
+      - name: Install Flutter ${{ env.FLUTTER_VERSION }}
+        run: |
+          git clone --depth 1 --branch "$FLUTTER_VERSION" \
+            https://github.com/flutter/flutter.git "$HOME/flutter"
+          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Report the toolchain
+        run: |
+          flutter --version
+          xcodebuild -version
+          echo "── simulator runtimes ──"
+          xcrun simctl list runtimes ios
+          echo "── device types matching the slots we want ──"
+          xcrun simctl list devicetypes | grep -E "iPhone 17|iPad Pro 13" || true
+
+      # tool/store_screenshots.sh exits if a named simulator is missing, which
+      # is the common failure when the runner image moves to a new Xcode. The
+      # devices are created here from the newest installed iOS runtime so the
+      # run does not depend on what the image happens to ship preconfigured.
+      - name: Create the simulators the script expects
+        run: |
+          set -euo pipefail
+
+          runtime=$(xcrun simctl list runtimes ios \
+            | awk '/com.apple.CoreSimulator.SimRuntime.iOS/ { id = $NF } END { print id }')
+          if [ -z "$runtime" ]; then
+            echo "No iOS simulator runtime is installed on this runner." >&2
+            exit 1
+          fi
+          echo "Using runtime $runtime"
+
+          create_if_missing() {
+            local name=$1
+            if xcrun simctl list devices available | grep -qF "    $name ("; then
+              echo "$name already exists"
+              return
+            fi
+            local type
+            type=$(xcrun simctl list devicetypes \
+              | grep -F "$name (" \
+              | tail -1 \
+              | sed -E 's/.*\((com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*)\).*/\1/')
+            if [ -z "$type" ]; then
+              echo "This runner has no device type called '$name'." >&2
+              echo "Pick one of these and update DEVICES in tool/store_screenshots.sh:" >&2
+              xcrun simctl list devicetypes >&2
+              exit 1
+            fi
+            echo "Creating $name from $type"
+            xcrun simctl create "$name" "$type" "$runtime"
+          }
+
+          create_if_missing "iPhone 17 Pro Max"
+          create_if_missing "iPad Pro 13-inch (M5)"
+
+      - name: Fetch packages
+        run: flutter pub get
+
+      - name: Shoot the screenshots
+        run: tool/store_screenshots.sh ${{ inputs.devices }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: store-screenshots-raw-ios
+          path: store_assets/screenshots/raw/
+          if-no-files-found: error

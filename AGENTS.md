@@ -46,6 +46,8 @@ flutter test tool/gen_icon_test.dart
 dart run flutter_launcher_icons
 
 # Shoot the raw store screenshots on every simulator/emulator (asks to fold the iPhone Duo)
+# The iOS devices need macOS; .github/workflows/store-screenshots-ios.yml
+# shoots them on a GitHub hosted Mac and uploads the raw pictures.
 tool/store_screenshots.sh
 
 # Frame them into the pictures the two listings show (needs librsvg)
