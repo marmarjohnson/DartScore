@@ -27,7 +27,7 @@ on:
 env:
   # Keep in step with ios/ci_scripts/ci_post_clone.sh, which pins the same SDK
   # for the Xcode Cloud build.
-  FLUTTER_VERSION: '3.47.6'
+  FLUTTER_VERSION: '3.47.8'
 
 jobs:
   screenshots:
