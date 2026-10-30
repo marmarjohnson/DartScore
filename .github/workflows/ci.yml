@@ -27,7 +27,7 @@ concurrency:
 env:
   # Keep in step with ios/ci_scripts/ci_post_clone.sh and the screenshot
   # workflow, which pin the same SDK.
-  FLUTTER_VERSION: '3.47.6'
+  FLUTTER_VERSION: '3.47.8'
 
 jobs:
   analyze-and-test:
